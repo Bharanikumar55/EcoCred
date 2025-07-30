@@ -1,5 +1,5 @@
-# Ignore dataset
-*.csv
+lending_club.csv
+
 
 # Jupyter autosave files
 .ipynb_checkpoints/
