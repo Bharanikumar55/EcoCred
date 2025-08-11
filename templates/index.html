@@ -8,7 +8,7 @@
 </head>
 <body>
   <div class="container">
-    <h1>🌱 Midoriloan Loan Eligibility Predictor</h1>
+    <h1>🌱 Eco-Cred Eligibility Predictor</h1>
 
     <form action="/predict" method="post">
       <label>Income (₹):</label>
@@ -26,12 +26,30 @@
         <option value="1">Car</option>
       </select>
 
-      <label>Eco Score:</label>
-      <select name="eco_score" required>
-        <option value="0">Low</option>
-        <option value="1">Medium</option>
-        <option value="2">High</option>
+      <label>Fuel Type:</label>
+      <select name="fuel_type" required>
+        <option value="Electric">Electric</option>
+        <option value="Petrol">Petrol</option>
+        <option value="Diesel">Diesel</option>
       </select>
+
+      <label>Job Type:</label>
+      <select name="job_type" required>
+        <option value="MNC">MNC</option>
+        <option value="Govt">Govt</option>
+        <option value="Self">Self</option>
+        <option value="Other">Other</option>
+      </select>
+
+      <label>Loan History:</label>
+      <select name="loan_history" required>
+        <option value="Paid">Paid</option>
+        <option value="Ongoing">Ongoing</option>
+        <option value="No History">No History</option>
+      </select>
+
+      <label>Credit Score:</label>
+      <input type="number" name="credit_score" min="300" max="900" required>
 
       <button type="submit">Check Eligibility</button>
     </form>
