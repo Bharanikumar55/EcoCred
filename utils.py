@@ -23,19 +23,35 @@ def preprocess_input(raw):
       credit_score, job_type, loan_history
     returns: pd.DataFrame with columns in feature_cols order
     """
+    # Always make a DataFrame
     df = pd.DataFrame([raw])
-    # encode
+
+    # Encode categorical features
     df['fuel_type_encoded'] = fuel_le.transform(df['fuel_type'])
     df['job_type_encoded'] = job_le.transform(df['job_type'])
     df['loan_history_encoded'] = loanhist_le.transform(df['loan_history'])
-    # features
+
+    # Derived features
     df['DTI_ratio'] = df['loan_amount'] / df['income']
     df['is_EV'] = (df['fuel_type'] == 'Electric').astype(int)
     df['high_consumption_flag'] = (df['monthly_units'] > 500).astype(int)
-    df['eco_category'] = pd.cut(df['eco_score'], bins=[-1,7,14,20], labels=['Low','Medium','High'])
-    df['eco_category_encoded'] = eco_le.transform(df['eco_category'])
+    df['eco_category'] = pd.cut(df['eco_score'], bins=[-1, 7, 14, 20],
+                                labels=['Low', 'Medium', 'High'])
+
+    # Encode eco_category safely
+    try:
+        df['eco_category_encoded'] = eco_le.transform(df['eco_category'])
+    except ValueError:
+        import numpy as np
+        # Merge missing labels into encoder
+        new_classes = np.unique(np.concatenate((eco_le.classes_, df['eco_category'].unique())))
+        eco_le.classes_ = new_classes
+        df['eco_category_encoded'] = eco_le.transform(df['eco_category'])
+
+    # Ensure correct order of features and correct shape
     X_user = df[feature_cols]
-    return X_user
+    return pd.DataFrame(X_user, columns=feature_cols)
+
 
 def get_model_and_explainer():
     # create a shap Explainer at app startup (fast for single-explains)
@@ -92,3 +108,45 @@ def generate_chatbot_message(reason_json):
         for r in reason_json['helpful']:
             out_lines.append(f"- {r['feature']}: {r['value']}")
     return "\n".join(out_lines)
+
+# utils.py
+
+SCHEMES = [
+    {
+        "name": "PM-KUSUM Solar Pump Scheme",
+        "criteria": lambda row: row["eco_score"] >= 15 and row["is_EV"] == 1,
+        "description": "For farmers adopting renewable energy and electric equipment.",
+        "link": "https://mnre.gov.in/pmkusum"
+    },
+    {
+        "name": "SBI Green Home Loan",
+        "criteria": lambda row: row["eco_score"] >= 12 and row["loan_amount"] > 500000,
+        "description": "For homes with energy-efficient designs and materials.",
+        "link": "https://sbi.co.in/green-homes"
+    },
+    {
+        "name": "MUDRA Yojana",
+        "criteria": lambda row: row["income"] <= 100000 and row["job_type_encoded"] in [0, 1],  # Self/Small business
+        "description": "Micro-loans for small businesses and entrepreneurs.",
+        "link": "https://mudra.org.in"
+    },
+    {
+        "name": "EV Purchase Subsidy",
+        "criteria": lambda row: row["is_EV"] == 1,
+        "description": "Government subsidy for purchasing electric vehicles.",
+        "link": "https://fame2.in"
+    }
+]
+def recommend_schemes(user_row):
+    recommendations = []
+    for scheme in SCHEMES:
+        try:
+            if scheme["criteria"](user_row):
+                recommendations.append({
+                    "name": scheme["name"],
+                    "description": scheme["description"],
+                    "link": scheme["link"]
+                })
+        except KeyError:
+            continue
+    return recommendations
