@@ -1,0 +1,4 @@
+.chatbot-outer .chat-window { background:#07121a; padding:10px; border-radius:6px; }
+.message { padding:8px 10px; margin:6px 0; border-radius:12px; max-width:80%; }
+.message.user { align-self:flex-end; background:#2dd4bf; color:#042020; margin-left:auto; }
+.message.bot { align-self:flex-start; background:#e6eef2; color:#042020; margin-right:auto; }

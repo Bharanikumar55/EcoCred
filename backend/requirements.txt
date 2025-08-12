@@ -7,3 +7,5 @@ seaborn
 streamlit
 shap
 imbalanced-learn
+flask
+flask-cors
