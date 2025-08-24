@@ -14,11 +14,10 @@ export default function App() {
         <section className="form-section">
           <LoanForm />
         </section>
-
-        <aside className="chat-section">
-          <Chatbot />
-        </aside>
       </main>
+
+      {/* Floating Chatbot */}
+      <Chatbot />
     </div>
   );
 }

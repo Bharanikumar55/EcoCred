@@ -9,7 +9,7 @@ from sklearn.metrics import classification_report, confusion_matrix, roc_curve
 from imblearn.over_sampling import SMOTE
 
 # --- 1) Load
-df = pd.read_csv("updated_midoriloan_data.csv")
+df = pd.read_csv("data/Eco_Cred_Data.csv")
 
 # --- 2) Encoders (fit & save)
 fuel_le = LabelEncoder().fit(df['fuel_type'])
@@ -73,13 +73,17 @@ print("\nClassification Report (tuned):")
 print(classification_report(y_test, y_pred))
 
 # --- 9) Save artifacts
-joblib.dump(model, "loan_model.pkl")
-joblib.dump({"fuel_le": fuel_le, "job_le": job_le, "loanhist_le": loanhist_le, "eco_le": eco_le}, "encoders.pkl")
-joblib.dump(feature_cols, "feature_cols.pkl")
-joblib.dump(best_thresh, "threshold.pkl")
+joblib.dump(model, "models/loan_model.pkl")
+joblib.dump(
+    {"fuel_le": fuel_le, "job_le": job_le, "loanhist_le": loanhist_le, "eco_le": eco_le},
+    "models/encoders.pkl"
+)
+joblib.dump(feature_cols, "models/feature_cols.pkl")
+joblib.dump(best_thresh, "models/threshold.pkl")
 
-# Save a small background sample for SHAP (100 rows)
+# Save a small background sample for SHAP
 shap_bg = X_train.sample(min(200, len(X_train)), random_state=42)
-joblib.dump(shap_bg, "shap_background.pkl")
+joblib.dump(shap_bg, "models/shap_background.pkl")
 
-print("Saved: loan_model.pkl, encoders.pkl, feature_cols.pkl, threshold.pkl, shap_background.pkl")
+print("✅ Saved: loan_model.pkl, encoders.pkl, feature_cols.pkl, threshold.pkl, shap_background.pkl in models/")
+
