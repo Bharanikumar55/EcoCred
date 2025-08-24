@@ -15,83 +15,61 @@ feature_cols = joblib.load(os.path.join(MODELS_DIR, "feature_cols.pkl"))
 threshold = joblib.load(os.path.join(MODELS_DIR, "threshold.pkl"))
 shap_background = joblib.load(os.path.join(MODELS_DIR, "shap_background.pkl"))
 
-fuel_le = encoders['fuel_le']
-job_le = encoders['job_le']
-loanhist_le = encoders['loanhist_le']
-eco_le = encoders['eco_le']
+# Encoders
+fuel_le = encoders["fuel_le"]
+job_le = encoders["job_le"]
+loanhist_le = encoders["loanhist_le"]
+eco_le = encoders["eco_le"]
 
 # --- Preprocessing ---
 def preprocess_input(raw):
+    """Convert raw user JSON into model-ready DataFrame"""
     df = pd.DataFrame([raw])
 
-    df['fuel_type_encoded'] = fuel_le.transform(df['fuel_type'])
-    df['job_type_encoded'] = job_le.transform(df['job_type'])
-    df['loan_history_encoded'] = loanhist_le.transform(df['loan_history'])
+    # Encoders
+    df["fuel_type_encoded"] = fuel_le.transform(df["fuel_type"])
+    df["job_type_encoded"] = job_le.transform(df["job_type"])
+    df["loan_history_encoded"] = loanhist_le.transform(df["loan_history"])
 
-    df['DTI_ratio'] = df['loan_amount'] / df['income']
-    df['is_EV'] = (df['fuel_type'] == 'Electric').astype(int)
-    df['high_consumption_flag'] = (df['monthly_units'] > 500).astype(int)
-    df['eco_category'] = pd.cut(
-        df['eco_score'], bins=[-1, 7, 14, 20],
-        labels=['Low', 'Medium', 'High']
+    # Feature engineering
+    df["DTI_ratio"] = df["loan_amount"] / df["income"]
+    df["is_EV"] = (df["fuel_type"] == "Electric").astype(int)
+    df["high_consumption_flag"] = (df["monthly_units"] > 500).astype(int)
+    df["eco_category"] = pd.cut(
+        df["eco_score"], bins=[-1, 7, 14, 20],
+        labels=["Low", "Medium", "High"]
     )
 
     try:
-        df['eco_category_encoded'] = eco_le.transform(df['eco_category'])
+        df["eco_category_encoded"] = eco_le.transform(df["eco_category"])
     except ValueError:
-        new_classes = np.unique(np.concatenate((eco_le.classes_, df['eco_category'].unique())))
+        new_classes = np.unique(np.concatenate((eco_le.classes_, df["eco_category"].unique())))
         eco_le.classes_ = new_classes
-        df['eco_category_encoded'] = eco_le.transform(df['eco_category'])
+        df["eco_category_encoded"] = eco_le.transform(df["eco_category"])
 
     return pd.DataFrame(df[feature_cols], columns=feature_cols)
 
+
 # --- SHAP explainer ---
 def get_model_and_explainer():
-    explainer = shap.Explainer(model, shap_background)
+    explainer = shap.TreeExplainer(model)
     return model, explainer, threshold, feature_cols
 
-def extract_shap_for_user(shap_values_obj, class_index=0):
-    arr = shap_values_obj.values
-    if arr.ndim == 3:
-        return arr[0, :, class_index]
-    elif arr.ndim == 2:
-        return arr[0, :]
-    else:
-        raise ValueError(f"Unexpected shap array shape: {arr.shape}")
 
-def shap_reason_engine(X_user_df, explainer, class_index=0):
-    shap_vals_obj = explainer(X_user_df)
-    shap_vals = extract_shap_for_user(shap_vals_obj, class_index)
-    features = np.array(X_user_df.columns)
-    values = np.ravel(X_user_df.values)
+def shap_reason_engine(X_user_df, explainer):
+    shap_values = explainer.shap_values(X_user_df)
+    vals = shap_values[1][0] if isinstance(shap_values, list) else shap_values[0]
+
     df = pd.DataFrame({
-        "feature": features,
-        "value": values,
-        "shap_value": shap_vals
+        "feature": X_user_df.columns,
+        "value": X_user_df.iloc[0].values,
+        "shap_value": vals
     }).sort_values(by="shap_value", ascending=True)
 
     harmful = df.head(3).to_dict(orient="records")
     helpful = df.tail(3).to_dict(orient="records")
-    decision = "Rejected" if class_index == 0 else "Approved"
-    return {"decision": decision, "harmful": harmful, "helpful": helpful}
+    return {"harmful": harmful, "helpful": helpful}
 
-def generate_chatbot_message(reason_json):
-    decision = reason_json['decision']
-    out_lines = []
-    if decision == "Rejected":
-        out_lines.append(f"❌ Your loan application was {decision}.")
-        out_lines.append("Top reasons:")
-        for r in reason_json['harmful']:
-            out_lines.append(f"- {r['feature']}: {r['value']} (negative impact)")
-        out_lines.append("\n💡 Suggestions to improve:")
-        for r in reason_json['helpful']:
-            out_lines.append(f"- Improve {r['feature']} (current {r['value']})")
-    else:
-        out_lines.append(f"✅ Your loan application was {decision}.")
-        out_lines.append("Top supporting factors:")
-        for r in reason_json['helpful']:
-            out_lines.append(f"- {r['feature']}: {r['value']}")
-    return "\n".join(out_lines)
 
 # --- Schemes ---
 SCHEMES = [
@@ -121,7 +99,9 @@ SCHEMES = [
     }
 ]
 
+
 def recommend_schemes(user_row):
+    """Recommend schemes based on processed user row"""
     recommendations = []
     for scheme in SCHEMES:
         try:

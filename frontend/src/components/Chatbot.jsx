@@ -1,75 +1,67 @@
-import React, {useState} from "react";
+import React, { useState } from "react";
 import "./Chatbot.css";
 
-export default function Chatbot(){
-  const [msgs, setMsgs] = useState([{sender:"bot", text:"Hi! I'm EcoCred Bot. Ask about loans, schemes, or type 'predict' to run a manual check."}]);
+export default function Chatbot() {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = useState([
+    { from: "bot", text: "Hi 👋 I'm your Loan Assistant! Ask me about loans, schemes, or eligibility." }
+  ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const push = m => setMsgs(prev=>[...prev,m]);
+  async function sendMessage(e) {
+    e.preventDefault();
+    if (!input.trim()) return;
 
-  async function send(){
-    if(!input.trim()) return;
-    push({sender:"user", text:input});
-    setInput(""); setLoading(true);
+    const newMsg = { from: "user", text: input };
+    setMessages(prev => [...prev, newMsg]);
+    setInput("");
+    setLoading(true);
 
     try {
-      // If user starts with "predict:" then attempt to parse payload after colon as JSON (optional)
-      if(input.toLowerCase().startsWith("predict:")){
-        const after = input.slice(8).trim();
-        let payload = {};
-        try { payload = JSON.parse(after); }
-        catch(e){ 
-          push({sender:"bot", text:"To run a prediction from chat use: predict: {\"income\":60000, \"loan_amount\":20000, ...} (json)"}); 
-          setLoading(false); return;
-        }
-        const res = await fetch("http://127.0.0.1:5000/predict", {
-          method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)
-        });
-        const data = await res.json();
-        push({sender:"bot", text: data.chatbot_message || JSON.stringify(data)});
-        setLoading(false); return;
-      }
-
-      // otherwise, call /chat
       const res = await fetch("http://127.0.0.1:5000/chat", {
-        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({message:input})
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: newMsg.text })
       });
+
       const data = await res.json();
-      push({sender:"bot", text: data.reply || data.response || "No reply"});
-    } catch(err){
-      console.error(err);
-      push({sender:"bot", text:"Error: unable to reach server."});
+      setMessages(prev => [...prev, { from: "bot", text: data.reply || "Sorry, I didn’t understand that." }]);
+    } catch (err) {
+      setMessages(prev => [...prev, { from: "bot", text: "⚠️ Error connecting to server" }]);
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="chatbot-outer card">
-      <h3>Chat Assistant</h3>
-      <div className="chat-window" id="chatwindow" style={{height:380, overflowY:"auto"}}>
-        {msgs.map((m,i)=>(
-          <div key={i} className={`message ${m.sender}`}>
-            {m.text}
-          </div>
-        ))}
-        {loading && <div className="message bot">Bot is typing...</div>}
-      </div>
+    <div className="chatbot-container">
+      <button className="chat-toggle" onClick={() => setOpen(!open)}>
+        {open ? "✖" : "💬"}
+      </button>
 
-      <div style={{display:"flex", marginTop:8}}>
-        <input
-          className="field"
-          value={input}
-          onChange={e=>setInput(e.target.value)}
-          onKeyDown={e=>e.key==="Enter" && send()}
-          placeholder="Ask: e.g. Which schemes can I apply for?"
-        />
-        <button className="btn" onClick={send} style={{marginLeft:8}}>Send</button>
-      </div>
-      <div className="small" style={{marginTop:8}}>
-        Tip: type <code>predict: {"{...json...}"}</code> to run a quick prediction from chat.
-      </div>
+      {open && (
+        <div className="chatbox">
+          <div className="chat-header">Loan Assistant</div>
+          <div className="chat-messages">
+            {messages.map((m, i) => (
+              <div key={i} className={`chat-message ${m.from}`}>
+                {m.text}
+              </div>
+            ))}
+            {loading && <div className="chat-message bot">⏳ Thinking...</div>}
+          </div>
+          <form className="chat-input" onSubmit={sendMessage}>
+            <input
+              type="text"
+              value={input}
+              placeholder="Type your question..."
+              onChange={e => setInput(e.target.value)}
+            />
+            <button type="submit">➤</button>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
