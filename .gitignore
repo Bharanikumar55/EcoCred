@@ -1,4 +1,6 @@
 lending_club.csv
+*.pkl
+*.csv
 
 
 # Jupyter autosave files
