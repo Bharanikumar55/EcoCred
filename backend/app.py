@@ -1,199 +1,157 @@
-import os
-import joblib
-import shap
-import numpy as np
-import pandas as pd
+# app.py
 from flask import Flask, request, jsonify
-from flask_cors import CORS
-
-# utils helpers
-from utils import preprocess_input, recommend_schemes
-from ocr_utils import extract_ocr_data   # keep OCR separate
+import pandas as pd
+import joblib
+import numpy as np
 
 app = Flask(__name__)
-CORS(app)
 
-# --- Paths ---
-BASE_DIR = os.path.dirname(__file__)
-MODELS_DIR = os.path.join(BASE_DIR, "models")
-
-# --- Load artifacts ---
-model = joblib.load(os.path.join(MODELS_DIR, "loan_model.pkl"))
-encoders = joblib.load(os.path.join(MODELS_DIR, "encoders.pkl"))
-feature_cols = joblib.load(os.path.join(MODELS_DIR, "feature_cols.pkl"))
-threshold = joblib.load(os.path.join(MODELS_DIR, "threshold.pkl"))
-shap_background = joblib.load(os.path.join(MODELS_DIR, "shap_background.pkl"))
-
-explainer = shap.TreeExplainer(model)
-
-# Store last prediction for chatbot context
-last_prediction = {"decision": None, "probability": None, "reasons": None, "schemes": None}
+# -------------------------------
+import joblib
 
 
-# ---------------------------
-# Manual Predict Route
-# ---------------------------
-@app.route("/predict", methods=["POST"])
+# Use raw string for Windows path
+model_path = r'C:\Users\jites\Desktop\EcoCred\backend\models\lending_club_model_1.pkl'
+import os
+
+print("Does the model exist?", os.path.exists(model_path))
+
+
+
+model = joblib.load(model_path)
+
+
+# -------------------------------
+# Mapping for categorical variables
+# -------------------------------
+job_type_mapping = {
+    'salaried': 0,
+    'self-employed': 1,
+    'other': 2
+}
+
+sub_grade_mapping = {
+    'A1':0,'A2':1,'A3':2,'A4':3,'A5':4,
+    'B1':5,'B2':6,'B3':7,'B4':8,'B5':9,
+    'C1':10,'C2':11,'C3':12,'C4':13,'C5':14
+    # extend if needed
+}
+
+# -------------------------------
+# Helper: Calculate derived features
+# -------------------------------
+def calculate_features(df):
+    # Loan related
+    rate = df['requested_interest']/100
+    term = df['term_months']
+    df['installment'] = df['loan_amount'] * (rate/12) / (1 - (1 + rate/12)**(-term))
+    df['out_prncp'] = df['loan_amount']  # initial outstanding principal
+    df['out_prncp_inv'] = df['loan_amount']  # for investors
+    
+    # Income & debt
+    df['dti'] = df['monthly_bills'] / (df['annual_income']/12)
+    df['revol_util_num'] = df.get('revol_util', 0)  # optional, default 0
+    
+    # Employment
+    df['emp_length_years'] = df['emp_length_years']
+    df['job_type_code'] = df['job_type'].map(job_type_mapping)
+    
+    # Past loans
+    df['total_rec_prncp'] = df.get('past_loans_total_principal', 0)
+    df['total_rec_late_fee'] = df.get('past_loans_late_fee', 0)
+    df['total_rec_int'] = df.get('past_loans_interest', 0)
+    df['credit_history_months'] = df.get('credit_history_months', df['emp_length_years']*12)
+    df['total_pymnt'] = df['total_rec_prncp'] + df['total_rec_int'] + df['total_rec_late_fee']
+    df['total_pymnt_inv'] = df['total_pymnt']
+    df['recoveries'] = df.get('recoveries',0)
+    
+    # FICO and sub-grade
+    df['fico_range_low'] = df.get('fico_range_low', 600)
+    df['fico_range_high'] = df.get('fico_range_high', 700)
+    df['sub_grade_code'] = df.get('sub_grade','A3')
+    df['sub_grade_code'] = df['sub_grade_code'].map(sub_grade_mapping)
+    
+    # Eco / Green
+    df['eco_score'] = df.get('eco_score',0.5)
+    df['is_EV'] = df.get('ev_ownership',0)
+    
+    # Term months
+    df['term_months'] = df['term_months']
+    
+    # Other numeric features defaulted if not provided
+    df['total_acc'] = df.get('total_acc', 5)
+    df['open_acc'] = df.get('open_acc', 3)
+    df['mths_since_last_delinq'] = df.get('mths_since_last_delinq', 24)
+    df['last_pymnt_amnt'] = df.get('last_pymnt_amnt', df['installment'])
+    df['last_pymnt_d'] = df.get('last_pymnt_d', '2025-08-01')
+    df['last_credit_pull_d'] = df.get('last_credit_pull_d', '2025-08-01')
+    df['addr_state'] = df.get('addr_state','NY')
+    df['zip_code'] = df.get('zip_code','10001')
+    
+    # Interest numeric
+    df['int_rate_num'] = df['requested_interest']
+    
+    return df
+
+# -------------------------------
+# Prediction route
+# -------------------------------
+@app.route('/predict', methods=['POST'])
 def predict():
-    global last_prediction
-    data = request.get_json()
-
     try:
-        # prepare features using utils
-        X = preprocess_input(data, encoders, feature_cols)
-
-        # model prediction
-        proba = model.predict_proba(X)[:, 1][0]
-        pred = int(proba >= threshold)
-
-        # SHAP values
-        shap_values = explainer.shap_values(X)
-        vals = shap_values[1][0] if isinstance(shap_values, list) else shap_values[0]
-
-        df_shap = pd.DataFrame({
-            "feature": feature_cols,
-            "value": X.iloc[0].values,
-            "shap_value": vals
+        data = request.json
+        df = pd.DataFrame([data])
+        
+        # Calculate derived features
+        df = calculate_features(df)
+        
+        # Select features used by the model (example: same as your top 30)
+        features = [
+            'total_rec_prncp', 'last_pymnt_d', 'last_pymnt_amnt', 'loan_amount', 'installment',
+            'out_prncp', 'last_fico_range_high', 'total_rec_late_fee', 'total_rec_int',
+            'credit_history_months', 'total_pymnt', 'dti', 'last_credit_pull_d', 'zip_code',
+            'revol_util_num', 'annual_income', 'total_pymnt_inv', 'recoveries', 'revol_bal',
+            'mths_since_last_delinq', 'int_rate_num', 'out_prncp_inv', 'open_acc', 'addr_state',
+            'fico_range_low', 'total_acc', 'emp_length_years', 'sub_grade_code', 'term_months', 'last_fico_range_low'
+        ]
+        
+        # Fill missing features with 0 or median if needed
+        for f in features:
+            if f not in df.columns:
+                df[f] = 0
+        
+        X = df[features]
+        
+        # Ensure numeric columns are float
+        for col in X.columns:
+            if X[col].dtype == object:
+                X[col] = pd.to_numeric(X[col], errors='coerce').fillna(0)
+        
+        # Prediction
+        prob_default = model.predict_proba(X)[:,1][0]
+        approval_prob = 1 - prob_default
+        approval_class = int(approval_prob >= 0.5)
+        
+        # Simple recommendations
+        recommendations = []
+        if data.get('eco_score',0) > 0.8:
+            recommendations.append('Green Loan / Reduced Interest')
+        if data.get('annual_income',0) < 25000:
+            recommendations.append('PM Mudra Loan')
+        if data.get('loan_amount',0) > 50000:
+            recommendations.append('Check SBI Green Home Loan')
+        
+        return jsonify({
+            'approval_probability': round(approval_prob,4),
+            'approval_class': approval_class,
+            'recommendations': recommendations
         })
-
-        helpful = df_shap.sort_values("shap_value", ascending=False).head(3).to_dict(orient="records")
-        harmful = df_shap.sort_values("shap_value").head(3).to_dict(orient="records")
-
-        # recommend schemes
-        schemes = recommend_schemes(data)
-
-        result = {
-            "prediction": pred,
-            "probability": proba,
-            "reasons": {"helpful": helpful, "harmful": harmful},
-            "schemes": schemes
-        }
-
-        # store for chatbot use
-        last_prediction = {
-            "decision": "Approved" if pred == 1 else "Rejected",
-            "probability": round(proba, 3),
-            "reasons": {"helpful": helpful, "harmful": harmful},
-            "schemes": schemes
-        }
-
-        return jsonify(result)
-
+    
     except Exception as e:
-        return jsonify({"error": str(e)}), 400
+        return jsonify({'error': str(e)})
 
-
-# ---------------------------
-# OCR Predict Route
-# ---------------------------
-@app.route("/predict-ocr", methods=["POST"])
-def predict_ocr():
-    global last_prediction
-    if "rc" not in request.files and "bill" not in request.files:
-        return jsonify({"error": "No file uploaded"}), 400
-
-    extracted = {}
-    if "rc" in request.files:
-        rc_file = request.files["rc"]
-        path_rc = os.path.join(BASE_DIR, "temp_rc.jpg")
-        rc_file.save(path_rc)
-        extracted.update(extract_ocr_data(path_rc))
-
-    if "bill" in request.files:
-        bill_file = request.files["bill"]
-        path_bill = os.path.join(BASE_DIR, "temp_bill.jpg")
-        bill_file.save(path_bill)
-        extracted.update(extract_ocr_data(path_bill))
-
-    # auto-fill defaults if missing
-    user_input = {
-        "income": 60000,
-        "loan_amount": 20000,
-        "vehicle_type": 1,  # assume car
-        "fuel_type": extracted.get("fuel_type", "Petrol"),
-        "eco_score": 10,
-        "credit_score": 650,
-        "job_type": "Govt",
-        "loan_history": "No History",
-        "monthly_units": extracted.get("monthly_units", 300)
-    }
-
-    try:
-        # prepare features
-        X = preprocess_input(user_input, encoders, feature_cols)
-
-        # prediction
-        proba = model.predict_proba(X)[:, 1][0]
-        pred = int(proba >= threshold)
-
-        # SHAP
-        shap_values = explainer.shap_values(X)
-        vals = shap_values[1][0] if isinstance(shap_values, list) else shap_values[0]
-
-        df_shap = pd.DataFrame({
-            "feature": feature_cols,
-            "value": X.iloc[0].values,
-            "shap_value": vals
-        })
-
-        helpful = df_shap.sort_values("shap_value", ascending=False).head(3).to_dict(orient="records")
-        harmful = df_shap.sort_values("shap_value").head(3).to_dict(orient="records")
-
-        schemes = recommend_schemes(user_input)
-
-        result = {
-            "prediction": pred,
-            "probability": proba,
-            "ocr_data": extracted,
-            "reasons": {"helpful": helpful, "harmful": harmful},
-            "schemes": schemes
-        }
-
-        # store for chatbot
-        last_prediction = {
-            "decision": "Approved" if pred == 1 else "Rejected",
-            "probability": round(proba, 3),
-            "reasons": {"helpful": helpful, "harmful": harmful},
-            "schemes": schemes
-        }
-
-        return jsonify(result)
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 400
-
-
-# ---------------------------
-# Chatbot Route
-# ---------------------------
-@app.route("/chat", methods=["POST"])
-def chat():
-    global last_prediction
-    data = request.get_json()
-    user_msg = data.get("message", "")
-
-    if not user_msg:
-        return jsonify({"reply": "⚠️ Please type something."})
-
-    user_msg = user_msg.lower()
-
-    if "why" in user_msg and last_prediction["decision"]:
-        reply = f"📊 Last decision: *{last_prediction['decision']}* (prob={last_prediction['probability']}).\n\n"
-        reply += "✅ Helpful factors:\n"
-        for r in last_prediction["reasons"]["helpful"]:
-            reply += f"- {r['feature']} = {r['value']} (shap={r['shap_value']:.3f})\n"
-        reply += "\n❌ Harmful factors:\n"
-        for r in last_prediction["reasons"]["harmful"]:
-            reply += f"- {r['feature']} = {r['value']} (shap={r['shap_value']:.3f})\n"
-    elif "scheme" in user_msg and last_prediction["schemes"]:
-        reply = "💡 Recommended schemes:\n"
-        for s in last_prediction["schemes"]:
-            reply += f"- {s['name']} — {s['description']}\n"
-    else:
-        reply = "🤖 Ask me about *eligibility*, *schemes*, or *reasons* for loan decisions."
-
-    return jsonify({"reply": reply})
-
-
-if __name__ == "__main__":
+# -------------------------------
+# Run app
+# -------------------------------
+if __name__ == '__main__':
     app.run(debug=True)
