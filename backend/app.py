@@ -1,25 +1,20 @@
-# app.py
 from flask import Flask, request, jsonify
 import pandas as pd
 import joblib
 import numpy as np
+import os
+
+# OCR utils
+from ocr_utils import extract_electricity_bill, extract_fuel_type, calculate_eco_score
 
 app = Flask(__name__)
 
 # -------------------------------
-import joblib
-
-
-# Use raw string for Windows path
+# Load ML model
+# -------------------------------
 model_path = r'C:\Users\jites\Desktop\EcoCred\backend\models\lending_club_model_1.pkl'
-import os
-
 print("Does the model exist?", os.path.exists(model_path))
-
-
-
 model = joblib.load(model_path)
-
 
 # -------------------------------
 # Mapping for categorical variables
@@ -34,29 +29,24 @@ sub_grade_mapping = {
     'A1':0,'A2':1,'A3':2,'A4':3,'A5':4,
     'B1':5,'B2':6,'B3':7,'B4':8,'B5':9,
     'C1':10,'C2':11,'C3':12,'C4':13,'C5':14
-    # extend if needed
 }
 
 # -------------------------------
 # Helper: Calculate derived features
 # -------------------------------
 def calculate_features(df):
-    # Loan related
     rate = df['requested_interest']/100
     term = df['term_months']
     df['installment'] = df['loan_amount'] * (rate/12) / (1 - (1 + rate/12)**(-term))
-    df['out_prncp'] = df['loan_amount']  # initial outstanding principal
-    df['out_prncp_inv'] = df['loan_amount']  # for investors
+    df['out_prncp'] = df['loan_amount']
+    df['out_prncp_inv'] = df['loan_amount']
     
-    # Income & debt
     df['dti'] = df['monthly_bills'] / (df['annual_income']/12)
-    df['revol_util_num'] = df.get('revol_util', 0)  # optional, default 0
+    df['revol_util_num'] = df.get('revol_util', 0)
     
-    # Employment
     df['emp_length_years'] = df['emp_length_years']
     df['job_type_code'] = df['job_type'].map(job_type_mapping)
     
-    # Past loans
     df['total_rec_prncp'] = df.get('past_loans_total_principal', 0)
     df['total_rec_late_fee'] = df.get('past_loans_late_fee', 0)
     df['total_rec_int'] = df.get('past_loans_interest', 0)
@@ -65,20 +55,19 @@ def calculate_features(df):
     df['total_pymnt_inv'] = df['total_pymnt']
     df['recoveries'] = df.get('recoveries',0)
     
-    # FICO and sub-grade
     df['fico_range_low'] = df.get('fico_range_low', 600)
     df['fico_range_high'] = df.get('fico_range_high', 700)
     df['sub_grade_code'] = df.get('sub_grade','A3')
     df['sub_grade_code'] = df['sub_grade_code'].map(sub_grade_mapping)
     
-    # Eco / Green
     df['eco_score'] = df.get('eco_score',0.5)
-    df['is_EV'] = df.get('ev_ownership',0)
+
+    # ✅ FIX: extract single value safely
+    fuel_val = str(df.get('fuel_type', [''])[0]).lower()
+    df['is_EV'] = 1 if fuel_val == 'electric' else 0
     
-    # Term months
     df['term_months'] = df['term_months']
     
-    # Other numeric features defaulted if not provided
     df['total_acc'] = df.get('total_acc', 5)
     df['open_acc'] = df.get('open_acc', 3)
     df['mths_since_last_delinq'] = df.get('mths_since_last_delinq', 24)
@@ -88,10 +77,10 @@ def calculate_features(df):
     df['addr_state'] = df.get('addr_state','NY')
     df['zip_code'] = df.get('zip_code','10001')
     
-    # Interest numeric
     df['int_rate_num'] = df['requested_interest']
     
     return df
+
 
 # -------------------------------
 # Prediction route
@@ -105,7 +94,6 @@ def predict():
         # Calculate derived features
         df = calculate_features(df)
         
-        # Select features used by the model (example: same as your top 30)
         features = [
             'total_rec_prncp', 'last_pymnt_d', 'last_pymnt_amnt', 'loan_amount', 'installment',
             'out_prncp', 'last_fico_range_high', 'total_rec_late_fee', 'total_rec_int',
@@ -115,24 +103,20 @@ def predict():
             'fico_range_low', 'total_acc', 'emp_length_years', 'sub_grade_code', 'term_months', 'last_fico_range_low'
         ]
         
-        # Fill missing features with 0 or median if needed
         for f in features:
             if f not in df.columns:
                 df[f] = 0
         
         X = df[features]
         
-        # Ensure numeric columns are float
         for col in X.columns:
             if X[col].dtype == object:
                 X[col] = pd.to_numeric(X[col], errors='coerce').fillna(0)
         
-        # Prediction
         prob_default = model.predict_proba(X)[:,1][0]
         approval_prob = 1 - prob_default
         approval_class = int(approval_prob >= 0.5)
         
-        # Simple recommendations
         recommendations = []
         if data.get('eco_score',0) > 0.8:
             recommendations.append('Green Loan / Reduced Interest')
@@ -146,12 +130,44 @@ def predict():
             'approval_class': approval_class,
             'recommendations': recommendations
         })
-    
     except Exception as e:
         return jsonify({'error': str(e)})
+
+# -------------------------------
+# OCR Routes
+# -------------------------------
+@app.route('/upload-electricity-bill', methods=['POST'])
+def upload_electricity_bill():
+    try:
+        file = request.files['file']
+        file_path = os.path.join("uploads", file.filename)
+        file.save(file_path)
+
+        print(f"[INFO] Saved bill to: {file_path}")
+        units = extract_electricity_bill(file_path)
+        return jsonify({'electricity_units': units})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
+@app.route('/upload-fuel-doc', methods=['POST'])
+def upload_fuel_doc():
+    try:
+        file = request.files['file']
+        file_path = os.path.join("uploads", file.filename)
+        file.save(file_path)
+
+        print(f"[INFO] Saved fuel doc to: {file_path}")
+        fuel_type = extract_fuel_type(file_path)
+        eco_score = calculate_eco_score(fuel_type)
+        return jsonify({'fuel_type': fuel_type, 'eco_score': eco_score})
+    except Exception as e:
+        return jsonify({'error': str(e)})
+
 
 # -------------------------------
 # Run app
 # -------------------------------
 if __name__ == '__main__':
+    if not os.path.exists("uploads"):
+        os.makedirs("uploads")
     app.run(debug=True)
