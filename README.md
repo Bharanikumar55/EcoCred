@@ -1,125 +1,57 @@
-# 🌱 EcoCred – Eco-Friendly Loan Eligibility & Default Prediction
+# EcoCred 🌱  
 
-> 🧪 **Status**: Under Development  
-> 📦 **Version**: v0.1  
-> 🔗 **Live Demo**: _Coming Soon_
+EcoCred is a Machine Learning–powered project designed to evaluate an individual's eco-friendliness and provide personalized scheme recommendations, benefits, and insights.  
 
 ---
 
-## 📝 Project Overview
-
-**EcoCred** is an intelligent loan approval system that combines financial assessment with eco-friendly behavior. Users are evaluated not only on traditional financial metrics (income, credit score, loan amount) but also on their environmental footprint, such as electricity usage and vehicle fuel type.  
-
-By integrating **ML models, OCR, and a web interface**, EcoCred encourages sustainability while predicting loan approval and default risk accurately.
-
----
-
-## 🎯 Objectives
-
-- Predict loan default risk using ML algorithms.  
-- Calculate an **eco score** from electricity bills and vehicle type.  
-- Use **OCR** to automatically extract key data from uploaded documents.  
-- Provide personalized loan recommendations.  
-- Build a web-based interface for real-world simulation.
+## 🔑 Project Overview
+- **Goal**: Promote eco-conscious behavior by rewarding individuals through interest reductions, offers, and schemes.  
+- **Dataset**: ~2.2M rows, 150+ features (subset sampling for efficiency).  
+- **Core Features**:
+  - ⚡ OCR Extraction → Extract details from electricity bills (kWh usage) & RC images (fuel type, EV check).  
+  - 📊 ML Prediction → LightGBM model trained with balanced dataset (25k eco-friendly & 25k non-eco-friendly).  
+  - 🌍 Eco Score → Derived from energy usage, transport choices, and lifestyle data.  
+  - 🎯 Scheme Recommendation → Suggests benefits/schemes based on eco score.  
+  - 🤖 Chatbot → (In-progress) to answer user queries.  
+  - 🔍 SHAP → Explainable AI for feature importance & decision transparency.  
 
 ---
 
-## 🔄 Methodology
+## 📂 Project Structure
+### Current (Improved) Version → `fresh-project` branch
+- ✅ Uses **LightGBM** for better performance on large datasets.  
+- ✅ Feature selection applied (30 columns kept, 10–12 user inputs + derived features).  
+- ✅ Balanced dataset sampling for improved accuracy & precision.  
+- ✅ Streamlit app for demo & UI testing.  
 
-### 📊 Data Sources
-- Lending Club dataset (cleaned & balanced)  
-- Simulated eco-friendly data (electricity consumption, fuel type)  
-- Sample electricity bill & RC images  
-
-### ⚙️ Machine Learning Models
-- **LightGBM** (primary model)  
-- Logistic Regression & Random Forest (for experimentation)  
-
-### 🧠 Input Features
-- Income  
-- Loan Amount  
-- Electricity Units (from OCR)  
-- Vehicle Type (from RC)  
-- Eco Score (calculated)  
-
-### 🔍 OCR & Image Preprocessing
-- **Pytesseract** extracts:  
-  - ⚡ kWh units from electricity bills  
-  - ⛽ Fuel type from RC  
-- Image preprocessing includes: grayscale, thresholding, and noise removal  
+### Old (Initial) Version → `main` branch
+- ❌ Used **Random Forest** with only 10 features & smaller dataset.  
+- ❌ Predictions were less accurate due to limited scope.  
+- ❌ Kept for reference to show learning & iteration.  
 
 ---
 
-## 🧩 Modules
-
-| Module                 | Description                                                  |
-|------------------------|--------------------------------------------------------------|
-| 👤 User Input           | Collects financial data, electricity bill & RC images       |
-| 🧾 OCR                  | Extracts electricity usage & fuel type from images          |
-| 🌍 Eco Scoring          | Calculates eco score based on user’s green behavior         |
-| 🤖 ML Prediction        | Predicts loan approval (0 = Rejected, 1 = Approved)         |
-| 📊 Result Display       | Displays approval, eco score, and recommendations           |
+## 🚀 Tech Stack
+- **ML Models**: Random Forest (old), LightGBM (current)  
+- **Python Libraries**: scikit-learn, lightgbm, shap, pandas, numpy  
+- **Frontend**: Streamlit  
+- **Other Features**: OCR (pytesseract, OpenCV), chatbot integration  
 
 ---
 
-## 🧰 Tech Stack
-
-| Category       | Tools/Libraries                               |
-|----------------|-----------------------------------------------|
-| Language       | Python                                        |
-| ML Libraries   | `sklearn`, `pandas`, `numpy`, `lightgbm`     |
-| OCR            | `pytesseract`, `opencv`                       |
-| Web Framework  | `Flask` (backend), HTML/CSS/JS (frontend)    |
-| Database       | `MongoDB` (planned for user history tracking)|
-| Version Control| Git, GitHub                                   |
+## 📊 Results
+- Improved accuracy & precision with LightGBM after balancing dataset.  
+- Clear interpretability with SHAP values.  
+- Scalable for large datasets with 2M+ records.  
 
 ---
 
-## 💡 Features
-
-✅ Trained ML model for loan prediction  
-✅ Eco score calculation via OCR  
-✅ File upload interface for electricity bills & RC  
-✅ Personalized loan recommendations  
-🕓 MongoDB integration (in progress)  
-🕓 PDF generation for loan approval (planned)  
-🕓 User login and history-based scoring (planned)  
+## 🔮 Future Scope
+- Complete chatbot integration.  
+- Expand scheme recommendation engine.  
+- Deploy full Streamlit app with user authentication.  
 
 ---
 
-## 📈 Sample Inputs
-
-| Feature            | Example Values                      |
-|--------------------|-------------------------------------|
-| Monthly Income     | ₹65,000                             |
-| Loan Amount        | ₹25,000                             |
-| Electricity Units  | 220 kWh (from bill via OCR)         |
-| Vehicle Type       | Petrol / Diesel / Electric (from RC)|
-| Eco Score          | 0 – 100 (auto-calculated)           |
-
----
-
-## 🚀 Future Enhancements
-
-- Google login + personalized dashboard  
-- Loan status tracker with MongoDB backend  
-- Aadhaar-based verification  
-- Deep learning-based OCR for improved accuracy  
-- Automated loan approval letters (PDF)  
-- EMI tracker & reminders  
-
----
-
-## 📁 Project Structure
-
-```bash
-EcoCred/
-│
-├── app.py                  # Flask backend logic
-├── templates/              # HTML frontend templates
-├── static/                 # CSS, JS, images
-├── notebooks/              # ML & OCR notebooks
-├── backend/                # Model, utilities, and API scripts
-├── frontend/               # React or web frontend code (if applicable)
-├── .gitignore              # Excluded files
-└── README.md               # Project documentation
+## 👨‍💻 Author
+Bharani Kumar  
