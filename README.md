@@ -113,7 +113,6 @@ By integrating **ML models, OCR, and a web interface**, EcoCred encourages susta
 ## 📁 Project Structure
 
 ```bash
-EcoCred/
 │
 ├── app.py                  # Flask backend logic
 ├── templates/              # HTML frontend templates
@@ -123,3 +122,50 @@ EcoCred/
 ├── frontend/               # React or web frontend code (if applicable)
 ├── .gitignore              # Excluded files
 └── README.md               # Project documentation
+
+##  Quickstart (Streamlit UI)
+
+You can run EcoCred end-to-end using Streamlit without starting the Flask server. The Streamlit app loads the model directly and falls back to a heuristic if the model file is missing.
+
+### 1) Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+- OCR features are optional. To enable OCR for PDF/images, ensure the following are installed:
+  - `opencv-python`, `pytesseract`, `pdf2image`, `Pillow` (already listed in requirements)
+  - Windows users: install Poppler and update `POPPLER_PATH` in `backend/ocr_utils.py` if needed.
+  - Install Tesseract OCR engine (system dependency) and make sure it is on PATH.
+
+### 2) Place the model (optional)
+
+Put `lending_club_model_1.pkl` under one of these paths so the app can auto-detect it:
+
+- `backend/models/lending_club_model_1.pkl`
+- `models/lending_club_model_1.pkl`
+
+If no model is found, the app will use a heuristic scorer so you can still explore the UI.
+
+### 3) Run Streamlit app
+
+```bash
+streamlit run backend/streamlit_app.py
+```
+### 4) (Alternative) Run Flask backend + existing Streamlit client
+
+If you prefer the original two-service setup:
+
+- Start Flask API:
+  ```bash
+  python backend/app.py
+  ```
+- Start Streamlit client that calls the API:
+  ```bash
+  streamlit run backend/frontend.py
+  ```
+
+##  Notes
+
+- The Streamlit UI supports two regions (IN, US). Monetary inputs convert to USD internally for modeling.
+- OCR uploads (bill/RC) are optional; the app gracefully handles missing OCR dependencies.
+- Basic theming is applied via `.streamlit/config.toml`. Adjust as you like.

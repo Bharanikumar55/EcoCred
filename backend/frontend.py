@@ -67,32 +67,59 @@ st.subheader("2) Enter Details")
 with st.form("loan_form"):
     colA, colB = st.columns(2)
     with colA:
-        loan_amount = st.number_input(f"Loan Amount ({currency})", min_value=1000 if region=="US" else 10000, value=20000 if region=="US" else 200000)
+        # use floats for min_value and default value to avoid mixed types
+        loan_amount = st.number_input(
+            f"Loan Amount ({currency})",
+            min_value=1000.0 if region == "US" else 10000.0,
+            value=20000.0 if region == "US" else 200000.0
+        )
         term_months = st.selectbox("Loan Term (months)", [36, 60], index=0)
-        requested_interest = st.number_input("Requested Interest (%)", min_value=1.0, max_value=25.0, value=12.5)
+        requested_interest = st.number_input(
+            "Requested Interest (%)",
+            min_value=1.0,
+            max_value=25.0,
+            value=12.5
+        )
 
     with colB:
-        annual_income = st.number_input(f"Annual Income ({currency})", min_value=1000 if region=="US" else 50000, value=40000 if region=="US" else 600000)
+        annual_income = st.number_input(
+            f"Annual Income ({currency})",
+            min_value=1000.0 if region == "US" else 50000.0,
+            value=40000.0 if region == "US" else 600000.0
+        )
         monthly_bills = st.number_input(
             f"Monthly Bills ({currency})",
             min_value=0.0,
-            value=float(electricity_units) if electricity_units else (1200 if region=="US" else 8000)
+            value=float(electricity_units) if electricity_units else (1200.0 if region == "US" else 8000.0)
         )
 
     colC, colD = st.columns(2)
     with colC:
-        emp_length_years = st.number_input("Years in Job", min_value=0, max_value=50, value=5)
+        # years in job is an integer field; keep ints consistent
+        emp_length_years = st.number_input("Years in Job", min_value=0, max_value=50, value=5, step=1)
         job_type = st.selectbox("Job Type", ["salaried", "self-employed", "other"])
         gender = st.selectbox("Gender (optional)", ["", "male", "female", "other"])
     with colD:
-        past_loans_total_principal = st.number_input(f"Past Loans Principal ({currency})", min_value=0.0, value=10000 if region=="US" else 150000.0)
-        past_loans_late_fee = st.number_input(f"Past Loans Late Fee ({currency})", min_value=0.0, value=50 if region=="US" else 500.0)
-        past_loans_interest = st.number_input(f"Past Loans Interest ({currency})", min_value=0.0, value=500 if region=="US" else 7000.0)
+        past_loans_total_principal = st.number_input(
+            f"Past Loans Principal ({currency})",
+            min_value=0.0,
+            value=10000.0 if region == "US" else 150000.0
+        )
+        past_loans_late_fee = st.number_input(
+            f"Past Loans Late Fee ({currency})",
+            min_value=0.0,
+            value=50.0 if region == "US" else 500.0
+        )
+        past_loans_interest = st.number_input(
+            f"Past Loans Interest ({currency})",
+            min_value=0.0,
+            value=500.0 if region == "US" else 7000.0
+        )
 
     st.text_input("Eco Score (auto from RC)", value=str(eco_score) if eco_score is not None else "Not extracted", disabled=True)
 
-    zip_code = st.text_input("ZIP/Postal Code", value="10001" if region=="US" else "560001")
-    addr_state = st.text_input("State", value="NY" if region=="US" else "KA")
+    zip_code = st.text_input("ZIP/Postal Code", value="10001" if region == "US" else "560001")
+    addr_state = st.text_input("State", value="NY" if region == "US" else "KA")
 
     submitted = st.form_submit_button("Check Approval")
 

@@ -12,7 +12,7 @@ app = Flask(__name__)
 # -------------------------------
 # Config
 # -------------------------------
-USD_PER_INR = 1 / 83.0  # ~INR → USD
+USD_PER_INR = 1 / 83.0  # ~INR -> USD conversion factor used for model inputs when region=IN
 DEFAULT_REGION = "US"   # "US" or "IN"
 
 # -------------------------------
@@ -74,6 +74,7 @@ def calculate_features(df: pd.DataFrame) -> pd.DataFrame:
     safe_rate = np.where(rate <= 0, 0.01, rate)
     safe_term = np.where(term <= 0, 36, term)
 
+    # installment (safeguarded)
     df['installment'] = df['loan_amount'] * (safe_rate/12) / (1 - (1 + safe_rate/12)**(-safe_term))
     df['out_prncp'] = df['loan_amount']
     df['out_prncp_inv'] = df['loan_amount']
@@ -104,7 +105,6 @@ def calculate_features(df: pd.DataFrame) -> pd.DataFrame:
 
     # Environmental factor
     df['eco_score'] = df.get('eco_score', 0.5)
-    # Fuel may come as str or list-like
     fv = df.get('fuel_type', 'Unknown')
     if isinstance(fv, (list, tuple, pd.Series)):
         fv = str(fv[0]) if len(fv) else "Unknown"
@@ -354,7 +354,7 @@ def upload_fuel_doc():
         if units:
             try:
                 units = float(units)
-                # naive tweak: lower units → slightly better eco score
+                # naive tweak: lower units -> slightly better eco score
                 eco_score = min(1.0, eco_score + (0.05 if units < 150 else 0.0))
             except:
                 pass
