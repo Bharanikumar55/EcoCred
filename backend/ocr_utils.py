@@ -1,41 +1,56 @@
-import cv2
 import pytesseract
+import cv2
+from pdf2image import convert_from_path
+import os
 import re
 
-# Force pytesseract to use the correct installed path (Windows fix)
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# Change this to your Poppler path if not in PATH
+POPPLER_PATH = r"C:\poppler-24.08.0\Library\bin"
 
-# Preprocess image before OCR
-def preprocess_image(image_path):
-    img = cv2.imread(image_path)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    _, thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)
-    return thresh
-
-# Extract text using OCR
-def extract_text(image_path):
-    processed = preprocess_image(image_path)
-    text = pytesseract.image_to_string(processed)
+def extract_text_from_file(file_path):
+    """Convert PDF to images (if needed), then OCR extract text."""
+    text = ""
+    if file_path.lower().endswith(".pdf"):
+        pages = convert_from_path(file_path, dpi=300, poppler_path=POPPLER_PATH)
+        for i, page in enumerate(pages):
+            img_path = f"temp_page_{i}.png"
+            page.save(img_path, "PNG")
+            img = cv2.imread(img_path)
+            page_text = pytesseract.image_to_string(img)
+            text += page_text + "\n"
+            os.remove(img_path)
+    else:
+        img = cv2.imread(file_path)
+        text = pytesseract.image_to_string(img)
     return text
 
-# Extract structured fields (example: from RC or electricity bill)
-def parse_fields(text):
-    result = {}
+def extract_electricity_bill(file_path):
+    """Extract electricity units from text using regex."""
+    text = extract_text_from_file(file_path)
+    m = re.search(r"(\d+)\s*(kwh|units?)", text.lower())
+    if m:
+        return int(m.group(1))
+    numbers = [int(s) for s in re.findall(r"\d+", text)]
+    return max(numbers) if numbers else 0
 
-    # Fuel type detection
-    fuel_match = re.search(r"(Petrol|Diesel|Electric)", text, re.IGNORECASE)
-    if fuel_match:
-        result["fuel_type"] = fuel_match.group(1).capitalize()
+def extract_fuel_type(file_path):
+    """Detect fuel type from RC."""
+    text = extract_text_from_file(file_path).lower()
+    if "electric" in text:
+        return "Electric"
+    if "diesel" in text:
+        return "Diesel"
+    if "petrol" in text:
+        return "Petrol"
+    return "Unknown"
 
-    # Electricity units (e.g. "Units Consumed: 450 kWh")
-    units_match = re.search(r"(\d+)\s*kWh", text)
-    if units_match:
-        result["monthly_units"] = int(units_match.group(1))
-
-    return result
-
-# Main function to process image and extract fields
-def extract_ocr_data(image_path):
-    text = extract_text(image_path)
-    fields = parse_fields(text)
-    return fields
+def calculate_eco_score(fuel_type):
+    """Simple eco score mapping."""
+    f = str(fuel_type).lower()
+    if f == "electric":
+        return 1.0
+    if f == "petrol":
+        return 0.5
+    if f == "diesel":
+        return 0.3
+    return 0.4
