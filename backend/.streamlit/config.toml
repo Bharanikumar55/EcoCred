@@ -1,0 +1,6 @@
+[theme]
+primaryColor = "#00BFA6"             # Modern teal-green
+backgroundColor = "#F5FAF7"          # Soft white-green background
+secondaryBackgroundColor = "#E8F5E9" # Card/sidebar background
+textColor = "#0D1B2A"                # Dark blue-gray
+font = "sans serif"
